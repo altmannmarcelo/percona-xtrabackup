@@ -2580,5 +2580,5 @@ inline const page_zip_des_t *buf_block_get_page_zip(
   return block->get_page_zip();
 }
 #include "buf0buf.ic"
-
+void buf_pool_resize();
 #endif /* !buf0buf_h */

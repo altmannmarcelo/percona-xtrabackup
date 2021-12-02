@@ -72,4 +72,10 @@ bool check_if_skip_table(
     /******************/
     const char *name); /*!< in: path to the table */
 
+namespace xtrabackup {
+namespace utils {
+unsigned long free_memory();
+}  // namespace utils
+}  // namespace xtrabackup
+
 #endif

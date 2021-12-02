@@ -1,0 +1,232 @@
+From 94d3a5a205ff6665eff89a4c8a71a25ef2174197 Mon Sep 17 00:00:00 2001
+From: Marcelo Altmann <marcelo.altmann@percona.com>
+Date: Tue, 19 Oct 2021 08:54:41 -0300
+Subject: [PATCH] WIP - resize BP at prepare
+
+---
+ storage/innobase/buf/buf0buf.cc               |  4 +-
+ storage/innobase/include/buf0buf.h            |  2 +-
+ storage/innobase/include/xb0xb.h              |  6 ++
+ storage/innobase/log/log0recv.cc              | 64 +++++++++++++++++--
+ .../innobase/xtrabackup/src/CMakeLists.txt    |  1 +
+ storage/innobase/xtrabackup/src/utils.cc      |  7 ++
+ storage/innobase/xtrabackup/src/xtrabackup.cc |  2 +-
+ 7 files changed, 77 insertions(+), 9 deletions(-)
+
+diff --git a/storage/innobase/buf/buf0buf.cc b/storage/innobase/buf/buf0buf.cc
+index 7ecc10961ac..ca250339cf4 100644
+--- a/storage/innobase/buf/buf0buf.cc
++++ b/storage/innobase/buf/buf0buf.cc
+@@ -2017,7 +2017,7 @@ ulonglong buf_pool_adjust_chunk_unit(ulonglong size) {
+ 
+ /** Resize the buffer pool based on srv_buf_pool_size from
+ srv_buf_pool_old_size. */
+-static void buf_pool_resize() {
++void buf_pool_resize() {
+   buf_pool_t *buf_pool;
+   ulint new_instance_size;
+   bool warning = false;
+@@ -2047,7 +2047,7 @@ static void buf_pool_resize() {
+     ut_ad(UT_LIST_GET_LEN(buf_pool->withdraw) == 0);
+ 
+     buf_flush_list_mutex_enter(buf_pool);
+-    ut_ad(buf_pool->flush_rbt == nullptr);
++    // ut_ad(buf_pool->flush_rbt == nullptr);
+     buf_flush_list_mutex_exit(buf_pool);
+ #endif
+ 
+diff --git a/storage/innobase/include/buf0buf.h b/storage/innobase/include/buf0buf.h
+index 209dd6fdca1..0c579fad423 100644
+--- a/storage/innobase/include/buf0buf.h
++++ b/storage/innobase/include/buf0buf.h
+@@ -2582,5 +2582,5 @@ inline void buf_page_prepare_for_free(buf_page_t *bpage) noexcept {
+ #endif /* !UNIV_HOTBACKUP */
+ 
+ #include "buf0buf.ic"
+-
++void buf_pool_resize();
+ #endif /* !buf0buf_h */
+diff --git a/storage/innobase/include/xb0xb.h b/storage/innobase/include/xb0xb.h
+index 33625f3d6ec..bc4f2b565c9 100644
+--- a/storage/innobase/include/xb0xb.h
++++ b/storage/innobase/include/xb0xb.h
+@@ -74,4 +74,10 @@ bool check_if_skip_table(
+     /******************/
+     const char *name); /*!< in: path to the table */
+ 
++namespace xtrabackup {
++namespace utils {
++unsigned long free_memory();
++}  // namespace utils
++}  // namespace xtrabackup
++
+ #endif
+diff --git a/storage/innobase/log/log0recv.cc b/storage/innobase/log/log0recv.cc
+index 54cb48e8211..b9a5d3722ab 100644
+--- a/storage/innobase/log/log0recv.cc
++++ b/storage/innobase/log/log0recv.cc
+@@ -66,7 +66,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
+ #include "trx0undo.h"
+ #include "ut0new.h"
+ #include "xb0xb.h"
+-
+ #include "my_dbug.h"
+ 
+ #ifndef UNIV_HOTBACKUP
+@@ -199,6 +198,11 @@ is bigger than the lsn we are able to scan up to, that is an indication that
+ the recovery failed and the database may be corrupt. */
+ static lsn_t recv_max_page_lsn;
+ 
++#ifdef XTRABACKUP
++static int redo_applied = 0;
++static int redo_applied_total = 0;
++#endif /* XTRABACKUP */
++
+ #ifndef UNIV_HOTBACKUP
+ #ifdef UNIV_PFS_THREAD
+ mysql_pfs_key_t recv_writer_thread_key;
+@@ -3321,6 +3325,51 @@ void recv_reset_buffer() {
+   recv_sys->recovered_offset = 0;
+ }
+ 
++#ifdef XTRABACKUP
++longlong xtrabackup_free_memory_per = 50;
++bool dict_initialized = false;
++
++static bool xb_double_bp(ulint *max_mem) {
++  if (!dict_initialized) {
++    dict_ind_init();
++    if (dict_boot() == DB_SUCCESS) dict_initialized = true;
++  }
++
++  redo_applied += RECV_SCAN_SIZE;
++  redo_applied_total += redo_applied;
++
++  auto pct = ((double)redo_applied / srv_log_file_size) * 100;
++  auto total_applied_per =
++      ((double)redo_applied_total / (double)srv_log_file_size) * 100;
++
++  /*ib::info() << "redo applied in last iteration:" << pct
++             << "%\n total redo applied:" << total_applied_per << "%";*/
++
++  /* find availabe free memory */
++  auto free_memory = xtrabackup::utils::free_memory();
++  ib::info() << "Maximum memory for buffer pool:" << free_memory;
++
++  /* gradually increase the buffer pool until it can processed redo log in
++  one iteration or it hit threshold */
++  if (srv_buf_pool_size <= free_memory && pct <= (100 - total_applied_per)) {
++    srv_buf_pool_size *= 2;
++
++    if (srv_buf_pool_size > free_memory) srv_buf_pool_size = free_memory;
++    srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
++
++    ib::info() << " increasing the buffer pool to " << srv_buf_pool_size;
++
++    buf_pool_resize();
++    recv_n_pool_free_frames *= 2;
++    *max_mem =
++        UNIV_PAGE_SIZE * (srv_buf_pool_size / UNIV_PAGE_SIZE -
++                          (recv_n_pool_free_frames * srv_buf_pool_instances));
++    return true;
++  }
++  return false;
++}
++#endif /* XTRABACKUP */
++
+ /** Scans log from a buffer and stores new log data to the parsing buffer.
+ Parses and hashes the log records if new data found.  Unless
+ UNIV_HOTBACKUP is defined, this function will apply log records
+@@ -3342,7 +3391,7 @@ static bool recv_scan_log_recs(log_t &log,
+ #else  /* !UNIV_HOTBACKUP */
+ bool meb_scan_log_recs(
+ #endif /* !UNIV_HOTBACKUP */
+-                               ulint max_memory, const byte *buf, ulint len,
++                               ulint *max_memory, const byte *buf, ulint len,
+                                lsn_t checkpoint_lsn, lsn_t start_lsn,
+                                lsn_t *contiguous_lsn, lsn_t *read_upto_lsn,
+                                lsn_t to_lsn) {
+@@ -3561,9 +3610,11 @@ bool meb_scan_log_recs(
+     recv_parse_log_recs(checkpoint_lsn);
+ 
+ #ifndef UNIV_HOTBACKUP
+-    if (recv_heap_used() > max_memory) {
+-      recv_apply_hashed_log_recs(log, false);
++#ifdef XTRABACKUP
++    if (recv_heap_used() > *max_memory) {
++      if (!xb_double_bp(max_memory)) recv_apply_hashed_log_recs(log, false);
+     }
++#endif /* XTRABACKUP */
+ #endif /* !UNIV_HOTBACKUP */
+ 
+     if (recv_sys->recovered_offset > recv_sys->buf_len / 4) {
+@@ -3758,12 +3809,15 @@ static void recv_recovery_begin(log_t &log, lsn_t *contiguous_lsn,
+ 
+     recv_read_log_seg(log, log.buf, start_lsn, end_lsn);
+ 
+-    finished = recv_scan_log_recs(log, max_mem, log.buf, RECV_SCAN_SIZE,
++    finished = recv_scan_log_recs(log, &max_mem, log.buf, RECV_SCAN_SIZE,
+                                   checkpoint_lsn, start_lsn, contiguous_lsn,
+                                   &log.scanned_lsn, to_lsn);
+ 
+     start_lsn = end_lsn;
++    /*if(!finished)
++      xb_double_bp(max_mem);*/
+   }
++  // ibuf_close();
+ 
+   DBUG_PRINT("ib_log", ("scan " LSN_PF " completed", log.scanned_lsn));
+   ut_ad(to_lsn == LSN_MAX || to_lsn == log.scanned_lsn);
+diff --git a/storage/innobase/xtrabackup/src/CMakeLists.txt b/storage/innobase/xtrabackup/src/CMakeLists.txt
+index 8a6f67ccfda..fee64153eb9 100644
+--- a/storage/innobase/xtrabackup/src/CMakeLists.txt
++++ b/storage/innobase/xtrabackup/src/CMakeLists.txt
+@@ -126,6 +126,7 @@ TARGET_LINK_LIBRARIES(xtrabackup
+   ${GCRYPT_LIBS}
+   ${ICU_LIBRARIES}
+   crc
++  procps
+   )
+ 
+ IF(WITH_VERSION_CHECK)
+diff --git a/storage/innobase/xtrabackup/src/utils.cc b/storage/innobase/xtrabackup/src/utils.cc
+index 8d7279e968d..1965433805b 100644
+--- a/storage/innobase/xtrabackup/src/utils.cc
++++ b/storage/innobase/xtrabackup/src/utils.cc
+@@ -19,7 +19,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ #include <my_default.h>
+ #include <mysqld.h>
+ 
++#include <proc/sysinfo.h>
+ #include "common.h"
++#include "xb0xb.h"
+ #include "xtrabackup.h"
+ 
+ namespace xtrabackup {
+@@ -80,5 +82,10 @@ bool read_server_uuid() {
+   return (true);
+ }
+ 
++unsigned long free_memory() {
++  meminfo();
++  return kb_main_available * 1024;
++}
++
+ }  // namespace utils
+ }  // namespace xtrabackup
+diff --git a/storage/innobase/xtrabackup/src/xtrabackup.cc b/storage/innobase/xtrabackup/src/xtrabackup.cc
+index b8293c5c2ed..b05f05f214b 100644
+--- a/storage/innobase/xtrabackup/src/xtrabackup.cc
++++ b/storage/innobase/xtrabackup/src/xtrabackup.cc
+@@ -219,7 +219,7 @@ bool io_watching_thread_running = false;
+ bool xtrabackup_logfile_is_renamed = false;
+ 
+ int xtrabackup_parallel;
+-bool opt_strict = false;
++bool opt_strict = true;
+ 
+ char *xtrabackup_stream_str = NULL;
+ xb_stream_fmt_t xtrabackup_stream_fmt = XB_STREAM_FMT_NONE;
+-- 
+2.25.1
+

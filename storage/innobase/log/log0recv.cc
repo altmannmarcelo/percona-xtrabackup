@@ -66,7 +66,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0undo.h"
 #include "ut0new.h"
 #include "xb0xb.h"
-
 #include "my_dbug.h"
 
 #ifndef UNIV_HOTBACKUP
@@ -198,6 +197,11 @@ ulint recv_n_pool_free_frames;
 is bigger than the lsn we are able to scan up to, that is an indication that
 the recovery failed and the database may be corrupt. */
 static lsn_t recv_max_page_lsn;
+
+#ifdef XTRABACKUP
+static int redo_applied = 0;
+static int redo_applied_total = 0;
+#endif /* XTRABACKUP */
 
 #ifndef UNIV_HOTBACKUP
 #ifdef UNIV_PFS_THREAD
@@ -3401,6 +3405,54 @@ void recv_reset_buffer() {
   recv_sys->recovered_offset = 0;
 }
 
+#ifdef XTRABACKUP
+longlong xtrabackup_free_memory_per = 50;
+bool dict_initialized = false;
+
+static bool xb_double_bp(ulint *max_mem) {
+  // if (!dict_initialized) {
+  dict_ind_init();
+  if (dict_boot() == DB_SUCCESS) dict_initialized = true;
+  //}
+
+  redo_applied += RECV_SCAN_SIZE;
+  redo_applied_total += redo_applied;
+
+  auto pct = ((double)redo_applied / srv_log_file_size) * 100;
+  auto total_applied_per =
+      ((double)redo_applied_total / (double)srv_log_file_size) * 100;
+
+  /*ib::info() << "redo applied in last iteration:" << pct
+             << "%\n total redo applied:" << total_applied_per << "%";*/
+
+  /* find availabe free memory */
+  auto free_memory = xtrabackup::utils::free_memory();
+  ib::info() << "Maximum memory for buffer pool:" << free_memory;
+
+  /* gradually increase the buffer pool until it can processed redo log in
+  one iteration or it hit threshold */
+  if (srv_buf_pool_size <= free_memory && pct <= (100 - total_applied_per)) {
+    srv_buf_pool_size *= 2;
+
+    if (srv_buf_pool_size > free_memory) srv_buf_pool_size = free_memory;
+    srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
+
+    ib::info() << " increasing the buffer pool to " << srv_buf_pool_size;
+
+    buf_pool_resize();
+    recv_n_pool_free_frames *= 2;
+    *max_mem =
+        UNIV_PAGE_SIZE * (srv_buf_pool_size / UNIV_PAGE_SIZE -
+                          (recv_n_pool_free_frames * srv_buf_pool_instances));
+    dict_close();
+    ibuf_close();
+    dict_ind_init();
+    return true;
+  }
+  return false;
+}
+#endif /* XTRABACKUP */
+
 /** Scans log from a buffer and stores new log data to the parsing buffer.
 Parses and hashes the log records if new data found.  Unless
 UNIV_HOTBACKUP is defined, this function will apply log records
@@ -3422,7 +3474,7 @@ static bool recv_scan_log_recs(log_t &log,
 #else  /* !UNIV_HOTBACKUP */
 bool meb_scan_log_recs(
 #endif /* !UNIV_HOTBACKUP */
-                               ulint max_memory, const byte *buf, ulint len,
+                               ulint *max_memory, const byte *buf, ulint len,
                                lsn_t checkpoint_lsn, lsn_t start_lsn,
                                lsn_t *contiguous_lsn, lsn_t *read_upto_lsn,
                                lsn_t to_lsn) {
@@ -3642,9 +3694,11 @@ bool meb_scan_log_recs(
     recv_parse_log_recs(checkpoint_lsn);
 
 #ifndef UNIV_HOTBACKUP
-    if (recv_heap_used() > max_memory) {
-      recv_apply_hashed_log_recs(log, false);
+#ifdef XTRABACKUP
+    if (recv_heap_used() > *max_memory) {
+      if (!xb_double_bp(max_memory)) recv_apply_hashed_log_recs(log, false);
     }
+#endif /* XTRABACKUP */
 #endif /* !UNIV_HOTBACKUP */
 
     if (recv_sys->recovered_offset > recv_sys->buf_len / 4) {
@@ -3839,12 +3893,15 @@ static void recv_recovery_begin(log_t &log, lsn_t *contiguous_lsn,
 
     recv_read_log_seg(log, log.buf, start_lsn, end_lsn);
 
-    finished = recv_scan_log_recs(log, max_mem, log.buf, RECV_SCAN_SIZE,
+    finished = recv_scan_log_recs(log, &max_mem, log.buf, RECV_SCAN_SIZE,
                                   checkpoint_lsn, start_lsn, contiguous_lsn,
                                   &log.scanned_lsn, to_lsn);
 
     start_lsn = end_lsn;
+    /*if(!finished)
+      xb_double_bp(max_mem);*/
   }
+  // ibuf_close();
 
   DBUG_PRINT("ib_log", ("scan " LSN_PF " completed", log.scanned_lsn));
   ut_ad(to_lsn == LSN_MAX || to_lsn == log.scanned_lsn);

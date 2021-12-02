@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <my_default.h>
 #include <mysqld.h>
 
+#include <proc/sysinfo.h>
 #include "common.h"
 #include "xtrabackup.h"
 
@@ -97,6 +98,11 @@ unsigned long get_version_number(std::string version_str) {
   else
     version = stoi(version_str.substr(minor_p + 1));
   return major * 10000 + minor * 100 + version;
+}
+
+unsigned long free_memory() {
+  meminfo();
+  return kb_main_available * 1024;
 }
 
 }  // namespace utils

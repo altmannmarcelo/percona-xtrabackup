@@ -126,6 +126,7 @@ TARGET_LINK_LIBRARIES(xtrabackup
   ${GCRYPT_LIBS}
   ${ICU_LIBRARIES}
   crc
+  procps
   )
 
  # We depend on protobuf because of the mysqlx plugin and replication.

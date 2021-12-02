@@ -222,7 +222,7 @@ bool io_watching_thread_running = false;
 bool xtrabackup_logfile_is_renamed = false;
 
 int xtrabackup_parallel;
-bool opt_strict = false;
+bool opt_strict = true;
 
 char *xtrabackup_stream_str = NULL;
 xb_stream_fmt_t xtrabackup_stream_fmt = XB_STREAM_FMT_NONE;
