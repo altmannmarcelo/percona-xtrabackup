@@ -54,5 +54,20 @@ inline Config_reader::Config_reader(const std::string config_file_path)
   file_stream.close();
 }
 
+#ifdef XTRABACKUP
+Config_reader::Config_reader(const std::string config_file_path,
+                             const std::string config_data)
+    : config_file_path_(config_file_path), data_(), valid_(false) {
+  data_.Parse(config_data);
+  valid_ = !data_.HasParseError();
+  if (!valid_) {
+    // fprintf(stderr, "Keyring configuration JSON parse error: %s (%lu)\n",
+    LogComponentErr(ERROR_LEVEL, ER_KEYRING_COMPONENT_CONFIG_PARSE_FAILED,
+                    rapidjson::GetParseError_En(data_.GetParseError()),
+                    data_.GetErrorOffset());
+  }
+}
+#endif
+
 }  // namespace config
 }  // namespace keyring_common

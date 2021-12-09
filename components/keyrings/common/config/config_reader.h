@@ -43,7 +43,19 @@ class Config_reader {
     @param [in] config_file_path Full path to configuration file
   */
   explicit Config_reader(const std::string config_file_path);
+#ifdef XTRABACKUP
+  /**
+    Constructor
 
+    Reads JSON from parameter and stores it in memory.
+
+    @param [in] config_file_path Full path to configuration file - not used
+
+    @param [in] config_data JSON string containing config data
+  */
+  explicit Config_reader(const std::string config_file_path,
+                         const std::string config_data);
+#endif
   /**
     Get an element value from JSON document.
     Assumption: Type is compatible with Get() function and

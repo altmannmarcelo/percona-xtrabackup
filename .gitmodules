@@ -1,3 +1,4 @@
 [submodule "extra/libkmip"]
 	path = extra/libkmip
-	url = https://github.com/dutow/libkmip.git
+  url = https://github.com/dutow/libkmip.git
+  branch = locate-support
