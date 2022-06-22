@@ -1217,6 +1217,23 @@ byte *mlog_parse_index(byte *ptr, const byte *end_ptr, dict_index_t **index) {
       }
     }
 
+    /* PS-8292-  Re-arrange the dropped cols, these are not part of index */
+    std::vector<dict_field_t> drop_cols;
+    std::vector<dict_field_t> all_cols;
+    for (size_t i = 0; i < ind->n_def; i++) {
+      dict_field_t *field = ind->get_field(i);
+      if (field->col->is_instant_dropped()) {
+        drop_cols.push_back(*field);
+      } else {
+        all_cols.push_back(*field);
+      }
+    }
+
+    all_cols.insert(std::end(all_cols), std::begin(drop_cols),
+                    std::end(drop_cols));
+
+    memcpy(ind->fields, all_cols.data(), ind->n_def * sizeof(dict_field_t));
+
     ind->row_versions = true;
   }
 
