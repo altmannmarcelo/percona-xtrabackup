@@ -194,8 +194,8 @@ xb_fil_cur_result_t xb_fil_cur_open(
   /* Allocate read buffer */
   ut_a(opt_read_buffer_size >= UNIV_PAGE_SIZE);
   cursor->buf_size = opt_read_buffer_size;
-  cursor->orig_buf = static_cast<byte *>(ut::malloc_withkey(
-      UT_NEW_THIS_FILE_PSI_KEY, cursor->buf_size + UNIV_PAGE_SIZE));
+  cursor->orig_buf =
+      static_cast<byte *>(ut::malloc(cursor->buf_size + UNIV_PAGE_SIZE));
   cursor->buf = static_cast<byte *>(ut_align(cursor->orig_buf, UNIV_PAGE_SIZE));
 
   /* Determine the page size */
@@ -231,10 +231,8 @@ xb_fil_cur_result_t xb_fil_cur_open(
   cursor->read_filter = read_filter;
   cursor->read_filter->init(&cursor->read_filter_ctxt, cursor, node->space->id);
 
-  cursor->scratch = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, cursor->page_size * 2));
-  cursor->decrypt = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, cursor->page_size));
+  cursor->scratch = static_cast<byte *>(ut::malloc(cursor->page_size * 2));
+  cursor->decrypt = static_cast<byte *>(ut::malloc(cursor->page_size));
 
   memcpy(cursor->encryption_key, node->space->encryption_key,
          sizeof(cursor->encryption_key));

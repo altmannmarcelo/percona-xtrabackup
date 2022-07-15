@@ -2314,10 +2314,8 @@ dberr_t dict_load_tables_from_space_id(space_id_t space_id, THD *thd,
 
   uint32_t compressed_buf_len = 1024 * 1024;
   uint32_t uncompressed_buf_len = 1024 * 1024;
-  byte *compressed_sdi = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, compressed_buf_len));
-  byte *sdi = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, uncompressed_buf_len));
+  byte *compressed_sdi = static_cast<byte *>(ut::malloc(compressed_buf_len));
+  byte *sdi = static_cast<byte *>(ut::malloc(uncompressed_buf_len));
 
   ib_err_t err = ib_sdi_get_keys(space_id, &ib_vector, trx);
 
@@ -2543,8 +2541,7 @@ static bool innodb_init(bool init_dd, bool for_apply_log) {
           dd_table_open_on_name(NULL, NULL, "mysql/innodb_dynamic_metadata",
                                 false, DICT_ERR_IGNORE_NONE);
     if (dict_persist->table_buffer == nullptr)
-      dict_persist->table_buffer =
-          ut::new_withkey<DDTableBuffer>(UT_NEW_THIS_FILE_PSI_KEY);
+      dict_persist->table_buffer = ut::new_<DDTableBuffer>();
     srv_dict_recover_on_restart();
   }
 
@@ -3636,8 +3633,8 @@ static xb_filter_entry_t *xb_new_filter_entry(
 
   ut_a(namelen <= NAME_LEN * 2 + 1);
 
-  entry = static_cast<xb_filter_entry_t *>(ut::zalloc_withkey(
-      UT_NEW_THIS_FILE_PSI_KEY, sizeof(xb_filter_entry_t) + namelen + 1));
+  entry = static_cast<xb_filter_entry_t *>(
+      ut::zalloc(sizeof(xb_filter_entry_t) + namelen + 1));
   entry->name = ((char *)entry) + sizeof(xb_filter_entry_t);
   strcpy(entry->name, name);
   entry->has_tables = false;
@@ -4314,8 +4311,8 @@ void xtrabackup_backup_func(void) {
   }
 
   /* Create data copying threads */
-  data_threads = (data_thread_ctxt_t *)ut::malloc_withkey(
-      UT_NEW_THIS_FILE_PSI_KEY,
+  data_threads = (data_thread_ctxt_t *)ut::malloc(
+
       sizeof(data_thread_ctxt_t) * xtrabackup_parallel);
   count = xtrabackup_parallel;
   mutex_create(LATCH_ID_XTRA_COUNT_MUTEX, &count_mutex);
@@ -4953,8 +4950,7 @@ static bool xtrabackup_init_temp_log(void) {
 
   max_no = 0;
 
-  log_buf = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, UNIV_PAGE_SIZE_MAX * 128));
+  log_buf = static_cast<byte *>(ut::malloc(UNIV_PAGE_SIZE_MAX * 128));
   if (log_buf == NULL) {
     goto error;
   }
@@ -5336,8 +5332,7 @@ static bool xb_space_create_file(
   with zeros from the call of os_file_set_size(), until a buffer pool
   flush would write to it. */
 
-  buf2 = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, 3 * UNIV_PAGE_SIZE));
+  buf2 = static_cast<byte *>(ut::malloc(3 * UNIV_PAGE_SIZE));
   /* Align the memory for file i/o if we might have O_DIRECT set */
   page = static_cast<byte *>(ut_align(buf2, UNIV_PAGE_SIZE));
 
@@ -5406,8 +5401,7 @@ static space_id_t get_space_id_from_page_0(const char *file_name) {
   bool ok;
   space_id_t space_id = SPACE_UNKNOWN;
 
-  auto buf = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, 2 * srv_page_size));
+  auto buf = static_cast<byte *>(ut::malloc(2 * srv_page_size));
 
   auto file = os_file_create_simple_no_error_handling(
       0, file_name, OS_FILE_OPEN, OS_FILE_READ_ONLY, srv_read_only_mode, &ok);
@@ -5490,8 +5484,8 @@ static pfs_os_file_t xb_delta_open_matching_space(
 
   /* remember space name used by incremental prepare. This hash is later used to
   detect the dropped tablespaces and remove them. Check rm_if_not_found() */
-  table = static_cast<xb_filter_entry_t *>(ut::malloc_withkey(
-      UT_NEW_THIS_FILE_PSI_KEY,
+  table = static_cast<xb_filter_entry_t *>(ut::malloc(
+
       sizeof(xb_filter_entry_t) + strlen(dest_space_name) + 1));
 
   table->name = ((char *)table) + sizeof(xb_filter_entry_t);
@@ -5783,8 +5777,7 @@ static bool xtrabackup_apply_delta(
 
   /* allocate buffer for incremental backup */
   incremental_buffer_base = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY,
-                         (page_size / 4 + 1) * page_size + UNIV_PAGE_SIZE_MAX));
+      ut::malloc((page_size / 4 + 1) * page_size + UNIV_PAGE_SIZE_MAX));
   incremental_buffer = static_cast<byte *>(
       ut_align(incremental_buffer_base, UNIV_PAGE_SIZE_MAX));
 

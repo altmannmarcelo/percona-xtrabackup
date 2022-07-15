@@ -327,8 +327,7 @@ static bool log_online_setup_bitmap_file_range(
   /* 2nd pass: get the file names in the file_seq_num order */
 
   bitmap_files->files = static_cast<log_online_bitmap_file_range_t::files_t *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY,
-                         bitmap_files->count * sizeof(bitmap_files->files[0])));
+      ut::malloc(bitmap_files->count * sizeof(bitmap_files->files[0])));
   memset(bitmap_files->files, 0,
          bitmap_files->count * sizeof(bitmap_files->files[0]));
 
@@ -831,8 +830,8 @@ xb_page_bitmap_range *xb_page_bitmap_range_init(
     ulint space_id)         /*!< in: space id */
 {
   byte search_page[MODIFIED_PAGE_BLOCK_SIZE];
-  xb_page_bitmap_range *result = static_cast<xb_page_bitmap_range *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, sizeof(*result)));
+  xb_page_bitmap_range *result =
+      static_cast<xb_page_bitmap_range *>(ut::malloc(sizeof(*result)));
 
   memset(result, 0, sizeof(*result));
   result->bitmap = bitmap;

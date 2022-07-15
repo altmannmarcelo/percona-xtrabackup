@@ -219,8 +219,7 @@ static bool datafile_open(const char *file, datafile_cur_t *cursor,
 
   ut_a(opt_read_buffer_size >= UNIV_PAGE_SIZE);
   cursor->buf_size = opt_read_buffer_size;
-  cursor->buf = static_cast<byte *>(
-      ut::malloc_withkey(UT_NEW_THIS_FILE_PSI_KEY, cursor->buf_size));
+  cursor->buf = static_cast<byte *>(ut::malloc(cursor->buf_size));
 
   return (true);
 }
@@ -534,8 +533,8 @@ static bool run_data_threads(const char *dir, F func, uint n,
   bool ret;
 
   ut_a(thread_description);
-  data_threads = (datadir_thread_ctxt_t *)(ut::malloc_withkey(
-      UT_NEW_THIS_FILE_PSI_KEY, sizeof(datadir_thread_ctxt_t) * n));
+  data_threads =
+      (datadir_thread_ctxt_t *)(ut::malloc(sizeof(datadir_thread_ctxt_t) * n));
 
   mutex_create(LATCH_ID_XTRA_COUNT_MUTEX, &count_mutex);
   count = n;
