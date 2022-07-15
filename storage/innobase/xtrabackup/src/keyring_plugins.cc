@@ -160,7 +160,7 @@ dberr_t xb_set_encryption(fil_space_t *space) {
   return (fil_set_encryption(space->id, Encryption::AES, key, iv));
 }
 
-const char *TRANSITION_KEY_PREFIX = "XBKey";
+const char TRANSITION_KEY_PREFIX[] = "XBKey";
 const size_t TRANSITION_KEY_PREFIX_LEN =
     sizeof(TRANSITION_KEY_PREFIX) / sizeof(char);
 const size_t TRANSITION_KEY_RANDOM_DATA_LEN = 32;
