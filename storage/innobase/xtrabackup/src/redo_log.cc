@@ -149,12 +149,20 @@ static bool reopen_log_files(lsn_t desired_lsn) {
   log.m_log_flags = log_flags;
   log.m_log_uuid = log_uuid;
   log.m_files = std::move(files);
-  auto file = log.m_files.find(desired_lsn);
-  if (file == log.m_files.end()) return false;
-  if (log_encryption_read(log, *file) != DB_SUCCESS) {
-    xb::error() << "log_encryption_read failed on file ID " << file->m_id;
-    return (false);
-  };
+  if (log.m_files.ctx().m_files_ruleset == Log_files_ruleset::CURRENT) {
+    auto file = log.m_files.find(desired_lsn);
+    if (file == log.m_files.end()) return false;
+    if (log_encryption_read(log, *file) != DB_SUCCESS) {
+      xb::error() << "log_encryption_read failed on file ID " << file->m_id;
+      return (false);
+    };
+  } else {
+    const auto logfile0 = log.m_files.file(0);
+    if (log_encryption_read(log, *logfile0) != DB_SUCCESS) {
+      xb::error() << "log_encryption_read failed on file ID 0";
+      return (false);
+    };
+  }
 
   return true;
 }
@@ -968,6 +976,15 @@ bool Redo_Log_Data_Manager::init() {
       return (false);
     }
     checkpoint_lsn = checkpoint.m_checkpoint_lsn;
+    auto file = log_sys->m_files.find(checkpoint_lsn);
+    if (file == log_sys->m_files.end()) {
+      xb::error() << " Cannot find file with checkpoint " << checkpoint_lsn;
+      return (false);
+    }
+    if (log_encryption_read(*log_sys, *file) != DB_SUCCESS) {
+      xb::error() << "log_encryption_read failed on file ID " << file->m_id;
+      return (false);
+    };
   } else {
     const auto logfile0 = log_sys->m_files.file(0);
     auto file_handle = logfile0->open(Log_file_access_mode::READ_ONLY);
@@ -981,16 +998,11 @@ bool Redo_Log_Data_Manager::init() {
       return (false);
     }
     checkpoint_lsn = chkp_header.m_checkpoint_lsn;
+    if (log_encryption_read(*log_sys, *logfile0) != DB_SUCCESS) {
+      xb::error() << "log_encryption_read failed on file ID 0";
+      return (false);
+    };
   }
-  auto file = log_sys->m_files.find(checkpoint_lsn);
-  if (file == log_sys->m_files.end()) {
-    xb::error() << " Cannot find file with checkpoint " << checkpoint_lsn;
-    return (false);
-  }
-  if (log_encryption_read(*log_sys, *file) != DB_SUCCESS) {
-    xb::error() << "log_encryption_read failed on file ID " << file->m_id;
-    return (false);
-  };
 
   ut_a(log_sys != nullptr);
 
