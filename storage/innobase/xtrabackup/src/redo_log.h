@@ -59,6 +59,9 @@ class Redo_Log_Reader {
   /** Get checkpoint LSN at the backup start. */
   lsn_t get_start_checkpoint_lsn() const;
 
+  /** Get checkpoint offset at tje backup start */
+  os_offset_t get_start_checkpoint_offset() const;
+
   /** Read from logfile into internal buffer
   @param[in] is_last            true if this is last read
   @param[in] finished           true if there is no more data to read
@@ -71,6 +74,9 @@ class Redo_Log_Reader {
 
   /** Whether there was an error. */
   bool is_error() const;
+
+  /** adjust log file m_start_lsn and m_end_lsn */
+  void recalibrate_log_lsn();
 
  private:
   /** log header buffer. */
@@ -99,8 +105,8 @@ class Redo_Log_Reader {
   @param[in]     end_lsn        read area end
   @return lsn up to which data was available on disk (ideally end_lsn)
   */
-  static lsn_t read_log_seg(log_t &log, byte *buf, lsn_t start_lsn,
-                            const lsn_t end_lsn);
+  lsn_t read_log_seg(log_t &log, byte *buf, lsn_t start_lsn,
+                     const lsn_t end_lsn);
 
   /** checkpoint LSN at the backup start. */
   static lsn_t checkpoint_lsn_start;
