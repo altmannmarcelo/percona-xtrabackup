@@ -35,7 +35,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "common.h"
 #include "crc_glue.h"
 #include "datasink.h"
-#include "ds_decompress.h"
 #include "ds_decompress_lz4.h"
 #include "ds_decompress_zstd.h"
 #include "ds_decrypt.h"
@@ -169,10 +168,8 @@ typedef struct {
   std::unordered_map<std::string, file_entry_t *> *filehash;
   std::list<xb_rstream_t *> *streams;
   ds_ctxt_t *ds_ctxt;
-  ds_ctxt_t *ds_decompress_quicklz_ctxt;
   ds_ctxt_t *ds_decompress_lz4_ctxt;
   ds_ctxt_t *ds_decompress_zstd_ctxt;
-  ds_ctxt_t *ds_decrypt_quicklz_ctxt;
   ds_ctxt_t *ds_decrypt_lz4_ctxt;
   ds_ctxt_t *ds_decrypt_zstd_ctxt;
   ds_ctxt_t *ds_decrypt_uncompressed_ctxt;
@@ -443,17 +440,13 @@ static file_entry_t *file_entry_new(extract_ctxt_t *ctxt, const char *path,
   }
   entry->pathlen = pathlen;
 
-  if (ctxt->ds_decrypt_quicklz_ctxt && ends_with(path, ".qp.xbcrypt")) {
-    file = ds_open(ctxt->ds_decrypt_quicklz_ctxt, path, NULL);
-  } else if (ctxt->ds_decrypt_lz4_ctxt && ends_with(path, ".lz4.xbcrypt")) {
+  if (ctxt->ds_decrypt_lz4_ctxt && ends_with(path, ".lz4.xbcrypt")) {
     file = ds_open(ctxt->ds_decrypt_lz4_ctxt, path, NULL);
   } else if (ctxt->ds_decrypt_zstd_ctxt && ends_with(path, ".zst.xbcrypt")) {
     file = ds_open(ctxt->ds_decrypt_zstd_ctxt, path, NULL);
   } else if (ctxt->ds_decrypt_uncompressed_ctxt &&
              ends_with(path, ".xbcrypt")) {
     file = ds_open(ctxt->ds_decrypt_uncompressed_ctxt, path, NULL);
-  } else if (ctxt->ds_decompress_quicklz_ctxt && ends_with(path, ".qp")) {
-    file = ds_open(ctxt->ds_decompress_quicklz_ctxt, path, NULL);
   } else if (ctxt->ds_decompress_lz4_ctxt && ends_with(path, ".lz4")) {
     file = ds_open(ctxt->ds_decompress_lz4_ctxt, path, NULL);
   } else if (ctxt->ds_decompress_zstd_ctxt && ends_with(path, ".zst")) {
@@ -585,12 +578,10 @@ static void extract_worker_thread_func(extract_ctxt_t &ctxt) {
            is_encrypted_and_compressed_suffix(chunk.path))) {
         char path[FN_REFLEN] = {0};
         memcpy(path, chunk.path, strlen(chunk.path));
-        unsigned short int qpress_offset = is_qpress_file(path) ? 1 : 0;
         if (is_compressed_suffix(path))
-          path[strlen(path) - compression_prefix_len + qpress_offset] = 0;
+          path[strlen(path) - compression_prefix_len] = 0;
         if (is_encrypted_and_compressed_suffix(path))
-          path[strlen(path) - compression_and_encryption_prefix_len +
-               qpress_offset] = 0;
+          path[strlen(path) - compression_and_encryption_prefix_len] = 0;
 
         char error[512];
         if (!restore_sparseness(path, XBSTREAM_BUFFER_SIZE, error)) {
@@ -651,9 +642,7 @@ static int mode_extract(int n_threads, int argc __attribute__((unused)),
   ds_ctxt_t *ds_ctxt = NULL;
   ds_ctxt_t *ds_decrypt_lz4_ctxt = NULL;
   ds_ctxt_t *ds_decrypt_zstd_ctxt = NULL;
-  ds_ctxt_t *ds_decrypt_quicklz_ctxt = NULL;
   ds_ctxt_t *ds_decrypt_uncompressed_ctxt = NULL;
-  ds_ctxt_t *ds_decompress_quicklz_ctxt = NULL;
   ds_ctxt_t *ds_decompress_lz4_ctxt = NULL;
   ds_ctxt_t *ds_decompress_zstd_ctxt = NULL;
   extract_ctxt_t *data_threads = NULL;
@@ -675,14 +664,6 @@ static int mode_extract(int n_threads, int argc __attribute__((unused)),
   }
 
   if (opt_decompress) {
-    ds_decompress_quicklz_threads = opt_decompress_threads;
-    ds_decompress_quicklz_ctxt = ds_create(".", DS_TYPE_DECOMPRESS_QUICKLZ);
-    if (ds_decompress_quicklz_ctxt == NULL) {
-      ret = 1;
-      goto exit;
-    }
-    ds_set_pipe(ds_decompress_quicklz_ctxt, ds_ctxt);
-
     ds_decompress_lz4_threads = opt_decompress_threads;
     ds_decompress_lz4_ctxt = ds_create(".", DS_TYPE_DECOMPRESS_LZ4);
     if (ds_decompress_lz4_ctxt == NULL) {
@@ -709,10 +690,6 @@ static int mode_extract(int n_threads, int argc __attribute__((unused)),
     if (ds_decrypt_uncompressed_ctxt == NULL) {
       ret = 1;
       goto exit;
-    }
-    if (ds_decompress_quicklz_ctxt) {
-      ds_decrypt_quicklz_ctxt = ds_create(".", DS_TYPE_DECRYPT);
-      ds_set_pipe(ds_decrypt_quicklz_ctxt, ds_decompress_quicklz_ctxt);
     }
     if (ds_decompress_lz4_ctxt) {
       ds_decrypt_lz4_ctxt = ds_create(".", DS_TYPE_DECRYPT);
@@ -758,11 +735,9 @@ static int mode_extract(int n_threads, int argc __attribute__((unused)),
     data_threads[i].thread_id = i;
     data_threads[i].filehash = filehash;
     data_threads[i].ds_ctxt = ds_ctxt;
-    data_threads[i].ds_decompress_quicklz_ctxt = ds_decompress_quicklz_ctxt;
     data_threads[i].ds_decompress_lz4_ctxt = ds_decompress_lz4_ctxt;
     data_threads[i].ds_decompress_zstd_ctxt = ds_decompress_zstd_ctxt;
     data_threads[i].ds_decrypt_uncompressed_ctxt = ds_decrypt_uncompressed_ctxt;
-    data_threads[i].ds_decrypt_quicklz_ctxt = ds_decrypt_quicklz_ctxt;
     data_threads[i].ds_decrypt_lz4_ctxt = ds_decrypt_lz4_ctxt;
     data_threads[i].ds_decrypt_zstd_ctxt = ds_decrypt_zstd_ctxt;
     data_threads[i].mutex = &mutex;
@@ -799,17 +774,11 @@ exit:
   if (ds_decrypt_zstd_ctxt != NULL) {
     ds_destroy(ds_decrypt_zstd_ctxt);
   }
-  if (ds_decrypt_quicklz_ctxt != NULL) {
-    ds_destroy(ds_decrypt_quicklz_ctxt);
-  }
   if (ds_decompress_lz4_ctxt != NULL) {
     ds_destroy(ds_decompress_lz4_ctxt);
   }
   if (ds_decompress_zstd_ctxt != NULL) {
     ds_destroy(ds_decompress_zstd_ctxt);
-  }
-  if (ds_decompress_quicklz_ctxt != NULL) {
-    ds_destroy(ds_decompress_quicklz_ctxt);
   }
 
   if (data_threads != nullptr) {

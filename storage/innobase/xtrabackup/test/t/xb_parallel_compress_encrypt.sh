@@ -2,7 +2,7 @@
 # Test basic local parallel backup with compression and encryption
 ############################################################################
 
-require_qpress
+require_zstd
 
 encrypt_algo="AES256"
 encrypt_key="percona_xtrabackup_is_awesome___"

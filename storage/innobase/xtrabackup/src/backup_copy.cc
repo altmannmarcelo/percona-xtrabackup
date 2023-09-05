@@ -1295,8 +1295,7 @@ static void par_copy_rocksdb_files(const Myrocks_datadir::const_iterator &start,
                                    size_t thread_n, ds_ctxt_t *ds,
                                    bool *result) {
   for (auto it = start; it != end; it++) {
-    if (ends_with(it->path.c_str(), ".qp") ||
-        ends_with(it->path.c_str(), ".lz4") ||
+    if (ends_with(it->path.c_str(), ".lz4") ||
         ends_with(it->path.c_str(), ".zst") ||
         ends_with(it->path.c_str(), ".xbcrypt")) {
       continue;
@@ -1959,7 +1958,6 @@ bool should_skip_file_on_copy_back(const char *filepath) {
       xtrabackup::components::XTRABACKUP_KEYRING_FILE_CONFIG,
       xtrabackup::components::XTRABACKUP_KEYRING_KMIP_CONFIG,
       xtrabackup::components::XTRABACKUP_KEYRING_KMS_CONFIG,
-      ".qp",
       ".lz4",
       ".zst",
       ".pmap",
@@ -1969,7 +1967,7 @@ bool should_skip_file_on_copy_back(const char *filepath) {
 
   filename = base_name(filepath);
 
-  /* skip .qp and .xbcrypt files */
+  /* skip left over files */
   if (filename_matches(filename, ext_list)) {
     return true;
   }
@@ -2478,17 +2476,6 @@ bool decrypt_decompress_file(const char *filepath, uint thread_n) {
     }
     dest_filepath[strlen(dest_filepath) - 8] = 0;
     message << "decrypting";
-    needs_action = true;
-  }
-
-  if (opt_decompress && (ends_with(filepath, ".qp") ||
-                         (ends_with(filepath, ".qp.xbcrypt") && opt_decrypt))) {
-    cmd << " | qpress -dio ";
-    dest_filepath[strlen(dest_filepath) - 3] = 0;
-    if (needs_action) {
-      message << " and ";
-    }
-    message << "decompressing";
     needs_action = true;
   }
 

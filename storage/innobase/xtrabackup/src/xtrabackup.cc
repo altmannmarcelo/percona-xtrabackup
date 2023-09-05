@@ -1241,7 +1241,7 @@ struct my_option xb_client_options[] = {
      GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"remove-original", OPT_REMOVE_ORIGINAL,
-     "Remove .qp, .zst, .lz4 and .xbcrypt files "
+     "Remove .zst, .lz4 and .xbcrypt files "
      "after decryption and decompression.",
      (uchar *)&opt_remove_original, (uchar *)&opt_remove_original, 0, GET_BOOL,
      NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1883,10 +1883,6 @@ bool xb_get_one_option(int optid, const struct my_option *opt, char *argument) {
       if (argument == NULL) {
         xtrabackup_compress = XTRABACKUP_COMPRESS_ZSTD;
         xtrabackup_compress_ds = DS_TYPE_COMPRESS_ZSTD;
-      } else if (strcasecmp(argument, "quicklz") == 0) {
-        /* leaving this as an option to show proper error message */
-        xtrabackup_compress = XTRABACKUP_COMPRESS_QUICKLZ;
-        xtrabackup_compress_ds = DS_TYPE_COMPRESS_QUICKLZ;
       } else if (strcasecmp(argument, "lz4") == 0) {
         xtrabackup_compress = XTRABACKUP_COMPRESS_LZ4;
         xtrabackup_compress_ds = DS_TYPE_COMPRESS_LZ4;
@@ -3338,12 +3334,6 @@ static void xtrabackup_init_datasinks(void) {
       ds_redo = ds_data = ds;
     }
 
-    /* Removal of qpress warning */
-    if (xtrabackup_compress == XTRABACKUP_COMPRESS_QUICKLZ) {
-      xb::error() << "--compress using quicklz is removed. Please use ZSTD or "
-                     "LZ4 instead.";
-      exit(EXIT_FAILURE);
-    }
     ds = ds_create(xtrabackup_target_dir, xtrabackup_compress_ds);
     xtrabackup_add_datasink(ds);
     ds_set_pipe(ds, ds_data);

@@ -110,11 +110,6 @@ bool is_encrypted_suffix(const std::string &path);
 @return true if it has the encryption & compression suffix. */
 bool is_encrypted_and_compressed_suffix(const std::string &path);
 
-/** Check if the file has qpress encryption
-@param[in]    path            Filename to check
-@return true if it has qpress encryption suffix. */
-bool is_qpress_file(const std::string &path);
-
 /* Holds the state of a data file read result */
 typedef enum {
   XB_FIL_CUR_SUCCESS,

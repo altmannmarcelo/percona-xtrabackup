@@ -3,7 +3,7 @@
 #
 
 require_rocksdb
-require_qpress
+require_zstd
 
 start_server
 
@@ -50,10 +50,10 @@ RESTORE_CMD="xtrabackup
 
 . inc/rocksdb_basic.sh
 
-if ls $topdir/backup/.rocksdb/*.sst.qp 2>/dev/null ; then
+if ls $topdir/backup/.rocksdb/*.sst.zst 2>/dev/null ; then
     die "SST files are compressed!"
 fi
 
-if ls $mysql_datadir/.rocksdb/*.qp 2>/dev/null ; then
+if ls $mysql_datadir/.rocksdb/*.zst 2>/dev/null ; then
     die "Compressed files are copied back!"
 fi

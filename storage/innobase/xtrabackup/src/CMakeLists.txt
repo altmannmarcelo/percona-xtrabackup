@@ -42,7 +42,6 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/storage/innobase/include
   ${CMAKE_SOURCE_DIR}/sql
-  ${CMAKE_SOURCE_DIR}/storage/innobase/xtrabackup/src/quicklz
   ${CMAKE_SOURCE_DIR}/storage/innobase/xtrabackup/src/crc
   ${GCRYPT_INCLUDE_DIR}
   ${CURL_INCLUDE_DIRS}
@@ -84,7 +83,6 @@ MYSQL_ADD_EXECUTABLE(xtrabackup
   changed_page_tracking.cc
   datasink.cc
   ds_buffer.cc
-  ds_compress.cc
   ds_compress_lz4.cc
   ds_compress_zstd.cc
   ds_encrypt.cc
@@ -95,7 +93,6 @@ MYSQL_ADD_EXECUTABLE(xtrabackup
   ds_xbstream.cc
   fil_cur.cc
   file_utils.cc
-  quicklz/quicklz.c
   read_filt.cc
   write_filt.cc
   wsrep.cc
@@ -172,13 +169,11 @@ MYSQL_ADD_EXECUTABLE(xbstream
   ds_buffer.cc
   ds_local.cc
   ds_stdout.cc
-  ds_decompress.cc
   ds_decrypt.cc
   ds_decompress_lz4.cc
   ds_decompress_zstd.cc
   datasink.cc
   file_utils.cc
-  quicklz/quicklz.c
   xbstream.cc
   xbstream_read.cc
   xbstream_write.cc

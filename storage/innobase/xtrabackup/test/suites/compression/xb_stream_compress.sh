@@ -2,7 +2,7 @@
 # Test streaming + compression
 ############################################################################
 
-require_qpress
+require_zstd
 
 stream_format=xbstream
 stream_extract_cmd="xbstream -xv <"

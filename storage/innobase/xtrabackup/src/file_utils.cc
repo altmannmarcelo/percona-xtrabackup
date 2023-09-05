@@ -191,8 +191,7 @@ bool file_has_suffix(const std::string &sfx, const std::string &path) {
 }
 
 bool is_compressed_suffix(const std::string &path) {
-  return file_has_suffix("qp", path) || file_has_suffix("lz4", path) ||
-         file_has_suffix("zst", path);
+  return file_has_suffix("lz4", path) || file_has_suffix("zst", path);
 }
 
 bool is_encrypted_suffix(const std::string &path) {
@@ -200,13 +199,8 @@ bool is_encrypted_suffix(const std::string &path) {
 }
 
 bool is_encrypted_and_compressed_suffix(const std::string &path) {
-  return file_has_suffix("qp.xbcrypt", path) ||
-         file_has_suffix("lz4.xbcrypt", path) ||
+  return file_has_suffix("lz4.xbcrypt", path) ||
          file_has_suffix("zst.xbcrypt", path);
-}
-
-bool is_qpress_file(const std::string &path) {
-  return file_has_suffix("qp", path) || file_has_suffix("qp.xbcrypt", path);
 }
 
 void datafile_close(datafile_cur_t *cursor) {

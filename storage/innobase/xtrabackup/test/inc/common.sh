@@ -1066,17 +1066,7 @@ function require_galera()
 }
 
 ########################################################################
-# Skip the test if qpress binary is not available
-########################################################################
-function require_qpress()
-{
-    if ! which qpress > /dev/null 2>&1 ; then
-        skip_test "Requires qpress to be installed"
-    fi
-}
-
-########################################################################
-# Skip the test if qpress binary is not available
+# Skip the test if lz4 binary is not available
 ########################################################################
 function require_lz4()
 {
@@ -1085,6 +1075,9 @@ function require_lz4()
     fi
 }
 
+########################################################################
+# Skip the test if zstd binary is not available
+########################################################################
 function require_zstd()
 {
     if ! which zstd > /dev/null 2>&1 ; then

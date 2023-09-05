@@ -1,5 +1,5 @@
 ########################################################################
-# Bug #983695: --copy-back should ignore *.qp files
+# Bug #983695: --copy-back should ignore *.zst files
 ########################################################################
 
 . inc/common.sh
@@ -21,5 +21,5 @@ xtrabackup --decompress --target-dir=$topdir/backup
 xtrabackup --prepare --target-dir=$topdir/backup
 xtrabackup --copy-back --target-dir=$topdir/backup
 
-run_cmd_expect_failure ls ${MYSQLD_DATADIR}/*.qp
-run_cmd_expect_failure ls ${MYSQLD_DATADIR}/sakila/*.qp
+run_cmd_expect_failure ls ${MYSQLD_DATADIR}/*.zst
+run_cmd_expect_failure ls ${MYSQLD_DATADIR}/sakila/*.zst

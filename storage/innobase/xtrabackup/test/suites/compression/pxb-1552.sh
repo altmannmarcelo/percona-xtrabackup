@@ -4,7 +4,7 @@
 #
 
 require_server_version_higher_than 5.6.0
-require_qpress
+require_zstd
 
 MYSQLD_EXTRA_MY_CNF_OPTS="
 innodb_file_per_table=1

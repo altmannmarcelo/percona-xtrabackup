@@ -2,7 +2,7 @@
 # Test streaming + compression
 ############################################################################
 
-require_qpress
+require_lz4
 
 stream_format=xbstream
 stream_extract_cmd="xbstream -xv --decompress --decompress-threads=4 <"

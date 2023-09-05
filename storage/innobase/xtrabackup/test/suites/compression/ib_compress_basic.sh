@@ -4,7 +4,7 @@
 
 . inc/common.sh
 
-require_qpress
+require_zstd
 
 start_server --innodb_file_per_table
 load_sakila

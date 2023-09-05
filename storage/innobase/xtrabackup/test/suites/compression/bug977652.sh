@@ -3,7 +3,7 @@
 #              full backup in Xtrabackup 2.0.0
 #############################################################################
 
-require_qpress
+require_zstd
 
 . inc/common.sh
 
