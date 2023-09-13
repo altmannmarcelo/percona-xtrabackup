@@ -31,6 +31,20 @@ function ssl_version() {
     echo ${sslv}
 }
 
+function glibc_version() {
+    glibc=$(ldd --version | head -1 | awk '{print $NF}')
+    case ${glibc} in
+        2.12|2.17|2.27|2.28|2.31|2.34|2.35) ;;
+        *)
+            if ! test -r "${1}"; then
+                >&2 echo "tarball for your glibc version (${glibc}) is not available"
+                exit 1
+            fi
+            ;;
+    esac
+    echo ${glibc}
+}
+
 shell_quote_string() {
   echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
@@ -105,7 +119,7 @@ main () {
             elif [[ ${short_version} -ge "20" && ${short_version} -lt "22" ]]; then
                 tarball="Percona-Server-${VERSION}-Linux.${arch}.glibc2.12${SUFFIX}.tar.gz"
             elif [[ ${short_version} -ge "22" ]]; then
-                tarball="Percona-Server-${VERSION}-Linux.${arch}.glibc2.17${SUFFIX}.tar.gz"
+                tarball="Percona-Server-${VERSION}-Linux.${arch}.glibc$(glibc_version)${SUFFIX}.tar.gz"
             fi
             ;;
         *) 
