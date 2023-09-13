@@ -97,6 +97,8 @@ main () {
             short_version=$(echo ${VERSION} | awk -F "." '{ print $3 }' | cut -d '-' -f1)
             if [[ ${PXB_TYPE} == "Debug" ]] || [[ ${PXB_TYPE} == "debug" ]]; then
                 SUFFIX="-debug"
+              else
+                SUFFIX="-minimal"
             fi
             if [[ ${short_version} -lt "20" ]]; then
                 tarball="Percona-Server-${VERSION}-Linux.${arch}.ssl$(ssl_version).tar.gz"
