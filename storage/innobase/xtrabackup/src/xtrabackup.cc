@@ -467,7 +467,12 @@ bool opt_dump_innodb_buffer_pool = false;
 
 bool punch_hole_supported = false;
 
-bool opt_lock_ddl = false;
+const char *opt_lock_ddl_type_names[] = {"ON", "OFF", "REDUCED", NullS};
+
+TYPELIB opt_lock_ddl_typelib = {array_elements(opt_lock_ddl_type_names) - 1, "",
+                                opt_lock_ddl_type_names, NULL};
+
+ulong opt_lock_ddl;
 bool opt_lock_ddl_per_table = false;
 uint opt_lock_ddl_timeout = 0;
 uint opt_backup_lock_timeout = 0;
@@ -547,8 +552,8 @@ datafiles_iter_t *datafiles_iter_new(
   Fil_iterator::for_each_file([&](fil_node_t *file) {
     auto space_id = file->space->id;
 
-    ut_ad(dd_spaces == nullptr ||
-          (dd_spaces != nullptr && srv_backup_mode && opt_lock_ddl));
+    ut_ad(dd_spaces == nullptr || (dd_spaces != nullptr && srv_backup_mode &&
+                                   opt_lock_ddl == LOCK_DDL_ON));
 
     if (dd_spaces != nullptr && fsp_is_ibd_tablespace(space_id) &&
         !fsp_is_system_or_temp_tablespace(space_id) &&
@@ -1051,10 +1056,18 @@ struct my_option xb_client_options[] = {
 
     {"lock-ddl", OPT_LOCK_DDL,
      "Issue LOCK TABLES/LOCK INSTANCE FOR BACKUP if it is "
-     "supported by server at the beginning of the backup to block all DDL "
-     "operations.",
-     (uchar *)&opt_lock_ddl, (uchar *)&opt_lock_ddl, 0, GET_BOOL, NO_ARG, 1, 0,
-     0, 0, 0, 0},
+     "supported by server. Possible options are: "
+     "ON - LTFB/LIFB is executed at the beginning of the backup to block all "
+     "DDLs;"
+     "OFF- LTFB/LIFB is not executed;"
+     "REDUCED - PXB does a copy of InnoDB tables without taking "
+     "any lock, while keeping track of tables affected by DDL. Before starting "
+     "to copy Non-InnoDB tables, LTFB/LIFB is executed and all InnoDB tables "
+     "affected by DDL are handled(either recopied or a special file is placed "
+     "in backup dir to handle the DDL operation during --prepare);"
+     "Default is ON.",
+     (uchar *)&opt_lock_ddl, (uchar *)&opt_lock_ddl, &opt_lock_ddl_typelib,
+     GET_ENUM, REQUIRED_ARG, LOCK_DDL_ON, 0, 0, 0, 0, 0},
 
     {"lock-ddl-timeout", OPT_LOCK_DDL_TIMEOUT,
      "If LOCK TABLES FOR BACKUP does not return within given timeout, abort "
@@ -2587,7 +2600,8 @@ static void xtrabackup_print_metadata(char *buf, size_t buf_len) {
            "redo_memory = %ld\n"
            "redo_frames = %ld\n",
            metadata_type_str, metadata_from_lsn, metadata_to_lsn,
-           metadata_last_lsn, opt_lock_ddl ? backup_redo_log_flushed_lsn : 0,
+           metadata_last_lsn,
+           opt_lock_ddl == LOCK_DDL_ON ? backup_redo_log_flushed_lsn : 0,
            redo_memory, redo_frames);
 }
 
@@ -3131,7 +3145,7 @@ skip:
     write_filter->deinit(&write_filt_ctxt);
   }
 
-  if (!opt_lock_ddl) {
+  if (opt_lock_ddl != LOCK_DDL_ON) {
     xb::warn() << "We assume the "
                << "table was dropped during xtrabackup execution "
                << "and ignore the file.";
@@ -4007,14 +4021,14 @@ void xtrabackup_backup_func(void) {
 
   srv_backup_mode = true;
 
-  if (opt_lock_ddl) {
+  if (opt_lock_ddl == LOCK_DDL_ON) {
     xb_dd_spaces = xb::backup::build_space_id_set(mysql_connection);
     ut_ad(xb_dd_spaces->size());
   }
 
   /* We can safely close files if we don't allow DDL during the
   backup */
-  srv_close_files = xb_close_files || opt_lock_ddl;
+  srv_close_files = xb_close_files || opt_lock_ddl == LOCK_DDL_ON;
 
   if (xb_close_files)
     xb::warn()
@@ -6806,13 +6820,13 @@ bool xb_init() {
   const char *mixed_options[4] = {NULL, NULL, NULL, NULL};
   int n_mixed_options;
 
-  if (opt_no_lock || opt_no_backup_locks) opt_lock_ddl = false;
+  if (opt_no_lock || opt_no_backup_locks) opt_lock_ddl = LOCK_DDL_OFF;
 
   /* sanity checks */
-  if (opt_lock_ddl && opt_lock_ddl_per_table) {
+  if (opt_lock_ddl != LOCK_DDL_OFF && opt_lock_ddl_per_table) {
     xb::error()
         << "--lock-ddl and --lock-ddl-per-table are mutually exclusive. "
-           "Please specify --lock-ddl=false to use --lock-ddl-per-table.";
+           "Please specify --lock-ddl=OFF to use --lock-ddl-per-table.";
     return (false);
   }
 
@@ -6896,13 +6910,13 @@ bool xb_init() {
     history_start_time = time(NULL);
 
     /* stop slave before taking backup up locks if lock-ddl=ON*/
-    if (!opt_no_lock && opt_lock_ddl && opt_safe_slave_backup) {
+    if (!opt_no_lock && opt_lock_ddl == LOCK_DDL_ON && opt_safe_slave_backup) {
       if (!wait_for_safe_slave(mysql_connection)) {
         return (false);
       }
     }
 
-    if (opt_lock_ddl &&
+    if (opt_lock_ddl == LOCK_DDL_ON &&
         !lock_tables_for_backup(mysql_connection, opt_lock_ddl_timeout, 0)) {
       return (false);
     }
